@@ -1,3 +1,12 @@
 provider "aws" {
-  region = "us-east-2"
-  }
+  region = var.AWS_REGION
+}
+
+data "aws_region" "current" {
+}
+
+data "aws_availability_zones" "available" {
+}
+
+provider "http" {
+}
