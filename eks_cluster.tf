@@ -1,29 +1,38 @@
-data "aws_eks_cluster" "eks" {
-  name = module.eks.cluster_id
+resource "aws_eks_cluster" "aws_eks" {
+  name     = "eks_cluster_levelup"
+  role_arn = aws_iam_role.eks_cluster.arn
+
+  vpc_config {
+    subnet_ids = module.vpc.public_subnets
+  }
+
+  depends_on = [
+    aws_iam_role_policy_attachment.AmazonEKSClusterPolicy,  
+    aws_iam_role_policy_attachment.AmazonEKSServicePolicy,
+  ]
+
+  tags = {
+    Name = "EKS_Cluster_LevelUp"
+  }
 }
 
-data "aws_eks_cluster_auth" "eks" {
-  name = module.eks.cluster_id
-}
+resource "aws_eks_node_group" "node" {
+  cluster_name    = aws_eks_cluster.aws_eks.name
+  node_group_name = "node_levelup"
+  node_role_arn   = aws_iam_role.eks_nodes.arn
+  subnet_ids      = module.vpc.public_subnets
 
-provider "kubernetes" {
-  host                   = data.aws_eks_cluster.eks.endpoint
-  cluster_ca_certificate = base64decode(data.aws_eks_cluster.eks.certificate_authority[0].data)
-  token                  = data.aws_eks_cluster_auth.eks.token
-}
+  scaling_config {
+    desired_size = 1
+    max_size     = 1
+    min_size     = 1
+  }
 
-module "eks" {
-  source          = "terraform-aws-modules/eks/aws"
-
-  cluster_version = "1.21"
-  cluster_name    = "my-cluster"
-  vpc_id          = "vpc-02f98d9d3d965d33d"
-  subnets         = ["subnet-0b5f26090c6d6c913", "subnet-0c2fa95046a9fcb1a"]
-
-  worker_groups = [
-    {
-      instance_type = "t2.micro"
-      asg_max_size  = 1
-    }
+  # Ensure that IAM Role permissions are created before and deleted after EKS Node Group handling.
+  # Otherwise, EKS will not be able to properly delete EC2 Instances and Elastic Network Interfaces.
+  depends_on = [
+    aws_iam_role_policy_attachment.AmazonEKSWorkerNodePolicy,
+    aws_iam_role_policy_attachment.AmazonEKS_CNI_Policy,
+    aws_iam_role_policy_attachment.AmazonEC2ContainerRegistryReadOnly,
   ]
 }
